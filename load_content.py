@@ -51,7 +51,7 @@ def main():
         tpath.mkdir(exist_ok=True)
         # drop the row metadata here
         with open(tpath / "metadata.yaml", "w") as f:
-            f.write(yaml.safe_dump(data))
+            yaml.safe_dump(data, f)
         if data['mdpi'] is not None:
             bcount = 1
             for barcode in data['mdpi']:
