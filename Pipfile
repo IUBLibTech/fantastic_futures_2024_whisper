@@ -7,6 +7,8 @@ name = "pypi"
 boto3 = "*"
 openpyxl = "*"
 pyyaml = "*"
+pipenv = "*"
+openai-whisper = "*"
 
 [dev-packages]
 

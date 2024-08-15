@@ -24,4 +24,4 @@ def human_time(duration: float) -> str:
     duration -= (hours * 3600)
     minutes = int(duration // 60)
     seconds = duration - (60 * minutes)
-    return f"{hours:02d}:{minutes:02d}:{seconds:05.3f}"
+    return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
