@@ -11,12 +11,14 @@ import boto3
 import logging
 from openpyxl.reader.excel import load_workbook
 from pathlib import Path
+import paramiko
 import re
 import yaml
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", default=False, action="store_true", help="Turn on debugging")
+    parser.add_argument("--highlander", default=False, action="store_true", help="Only retrieve the first media file (there can be only one)")
     parser.add_argument("s3_config", help="S3 Configuration file")
     parser.add_argument("s3_list", help="List of objects in the s3 bucket")
     parser.add_argument("project_inventory", help="Project Inventory Spreadsheet")
@@ -52,17 +54,29 @@ def main():
         # drop the row metadata here
         with open(tpath / "metadata.yaml", "w") as f:
             yaml.safe_dump(data, f)
-        if data['mdpi'] is not None:
+        if data['mdpi'] is not None:            
             bcount = 1
             for barcode in data['mdpi']:
                 scount = 1
-                for sfile in s3_list[barcode]:
-                    nfile = tpath / f"{bcount:02d}-{scount:02d}-{barcode}.mp4"
-                    logging.info(f"{sfile} -> {nfile}")                    
-                    s3.download_file(s3_config['bucket'], sfile, str(nfile))                    
-                    scount += 1
+                if ':' in barcode:
+                    # this is a host:path name.
+                    host, path = barcode.split(':')                    
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(hostname=host)
+                    sftp = ssh.open_sftp()                    
+                    sftp.get(path, str(tpath / Path(path).name))
+                else:
+                    for sfile in s3_list[barcode]:
+                        nfile = tpath / f"{bcount:02d}-{scount:02d}-{barcode}.mp4"
+                        logging.info(f"{sfile} -> {nfile}")                    
+                        s3.download_file(s3_config['bucket'], sfile, str(nfile))                    
+                        scount += 1
+                        if args.highlander:
+                            break
                 bcount += 1
-
+                if args.highlander:
+                    break
 
 def read_inventory(file: Path) -> dict:
     """Read the inventory spreadsheet"""
