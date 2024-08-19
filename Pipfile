@@ -9,6 +9,7 @@ openpyxl = "*"
 pyyaml = "*"
 pipenv = "*"
 openai-whisper = "*"
+paramiko = "*"
 
 [dev-packages]
 
