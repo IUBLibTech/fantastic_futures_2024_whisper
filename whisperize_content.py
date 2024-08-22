@@ -86,6 +86,7 @@ def main():
             else:
                 language = args.language
 
+            
             res = whisper.transcribe(model, audio, 
                                      word_timestamps=True,
                                      language=language)
