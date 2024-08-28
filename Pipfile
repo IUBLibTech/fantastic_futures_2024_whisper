@@ -10,6 +10,7 @@ pyyaml = "*"
 pipenv = "*"
 openai-whisper = "*"
 paramiko = "*"
+jiwer = "*"
 
 [dev-packages]
 

@@ -56,6 +56,7 @@ def main():
             yaml.safe_dump(data, f)
         if data['mdpi'] is not None:            
             bcount = 1
+            downloaded = 0
             for barcode in data['mdpi']:
                 scount = 1
                 if ':' in barcode:
@@ -66,13 +67,21 @@ def main():
                     ssh.connect(hostname=host)
                     sftp = ssh.open_sftp()                    
                     sftp.get(path, str(tpath / Path(path).name))
-                else:
+                else:                    
+                    if '@' in barcode:
+                        barcode, partnum = barcode.split('@')
+                        parts = [int(x) for x in partnum.split(',')]
+                    else:
+                        parts = None
+
                     for sfile in s3_list[barcode]:
                         nfile = tpath / f"{bcount:02d}-{scount:02d}-{barcode}.mp4"
-                        logging.info(f"{sfile} -> {nfile}")                    
-                        s3.download_file(s3_config['bucket'], sfile, str(nfile))                    
+                        if parts is None or scount in parts:
+                            logging.info(f"{sfile} -> {nfile}")                    
+                            s3.download_file(s3_config['bucket'], sfile, str(nfile))                    
+                            downloaded += 1
                         scount += 1
-                        if args.highlander:
+                        if args.highlander and downloaded > 0:
                             break
                 bcount += 1
                 if args.highlander:
