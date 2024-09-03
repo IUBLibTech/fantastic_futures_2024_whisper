@@ -16,6 +16,7 @@ from tempfile import NamedTemporaryFile
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", default=False, action="store_true", help="Turn on debugging")
+    parser.add_argument("--resume", default=False, action="store_true", help="Resume where it left off")
     parser.add_argument("workdir", type=Path, help="Root for the media files")
     
     args = parser.parse_args()
@@ -28,6 +29,20 @@ def main():
     
     workdir: Path = args.workdir
     
+    if args.resume:
+        # determine the time of the newest whisper file and set the cutoff time
+        # to one second prior to that (in case we were killed while writing
+        # that transcript file)
+        file_times = []
+        for f in workdir.glob("**/*.whisper.*.json"):
+            file_times.append(f.stat().st_mtime)
+        resume_time = max(file_times) - 1
+    else:
+        resume_time = 0
+
+
+
+
     # Set up whisper
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     logging.info(f"Whisper will use {device} for computation")
@@ -59,6 +74,9 @@ def main():
                     for previous_text in ('T', 'F'):
                         logging.info(f"Transcribing {media_file} with model {model_name}, previous_text {previous_text}, audio_filter: {audio_filter}")
                         whisper_file = media_file.with_suffix(f".whisper.{model_name}_{previous_text}_{audio_filter}.json")
+                        if whisper_file.stat().st_mtime < resume_time:
+                            logging.info(f"Skipping creation of {whisper_file.name} since it already exists")
+                            continue
 
                         
                         whisper_start = time.time()
