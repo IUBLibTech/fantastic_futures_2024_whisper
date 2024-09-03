@@ -33,10 +33,12 @@ def main():
         # determine the time of the newest whisper file and set the cutoff time
         # to one second prior to that (in case we were killed while writing
         # that transcript file)
-        file_times = [0]
+        file_times = {'null_file': 0}
         for f in workdir.glob("**/*.whisper.*.json"):
-            file_times.append(f.stat().st_mtime)
-        resume_time = max(file_times) - 1
+            file_times[f.name] = f.stat().st_mtime
+        newest = max(file_times, key=file_times.get)
+        resume_time = file_times[newest] - 1
+        logging.info(f"Will resume for files that are newer than {newest} ({resume_time})")
     else:
         resume_time = 0
 
@@ -74,7 +76,7 @@ def main():
                     for previous_text in ('T', 'F'):
                         logging.info(f"Transcribing {media_file} with model {model_name}, previous_text {previous_text}, audio_filter: {audio_filter}")
                         whisper_file = media_file.with_suffix(f".whisper.{model_name}_{previous_text}_{audio_filter}.json")
-                        if whisper_file.stat().st_mtime < resume_time:
+                        if whisper_file.exists() and whisper_file.stat().st_mtime < resume_time:
                             logging.info(f"Skipping creation of {whisper_file.name} since it already exists")
                             continue
 
