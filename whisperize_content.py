@@ -33,7 +33,7 @@ def main():
         # determine the time of the newest whisper file and set the cutoff time
         # to one second prior to that (in case we were killed while writing
         # that transcript file)
-        file_times = []
+        file_times = [0]
         for f in workdir.glob("**/*.whisper.*.json"):
             file_times.append(f.stat().st_mtime)
         resume_time = max(file_times) - 1
