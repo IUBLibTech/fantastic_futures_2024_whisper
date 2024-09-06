@@ -92,8 +92,9 @@ def main():
                 for previous_text in ('T', 'F'):
                     variant = [model, audio_filter, previous_text]
                     data.append({'variant': variant,
-                                 'sheets': sheets})
-        aggregate_sheet(sheet, f"Average across physical format {pf}", variations, data)
+                                 'sheets': sheets,
+                                 'all_sheets': all_worksheets})
+        aggregate_sheet(sheet, f"Average across physical format \"{pf}\"", variations, data)
 
     # Aggregate(s) by Content Type
     for pf, pxscripts in sorted(group_by(transcripts, 'content_type').items()):
@@ -105,8 +106,9 @@ def main():
                 for previous_text in ('T', 'F'):
                     variant = [model, audio_filter, previous_text]
                     data.append({'variant': variant,
-                                 'sheets': sheets})
-        aggregate_sheet(sheet, f"Average across content type {pf}", variations, data)
+                                 'sheets': sheets,
+                                 'all_sheets': all_worksheets})
+        aggregate_sheet(sheet, f"Average across content type \"{pf}\"", variations, data)
 
 
 
@@ -191,7 +193,7 @@ def populate_sheet(sheet: Worksheet, title: str, vtitle: list[str], todo: list[d
         row += 2
 
         o = jiwer.process_words(this['base'], this['comp'])
-        vis, stats = generate_visualization(o, differences=True)
+        vis, stats = generate_visualization(o, differences=True) # Show everything?
         for k in stat_headers.values():
             sheet.cell(row, col, getattr(o, k)).number_format = "0.00%"
             row += 1
@@ -234,9 +236,22 @@ def aggregate_sheet(sheet: Worksheet, title: str, vtitle: list[str], todo: list[
     sheet.cell(row, 1, "Processing Ratio").font = data_font
     row += 2
 
+    # WER stat headers
+    stat_row_start = row
     for x in stat_headers:
         sheet.cell(row, 1, x).font = data_font
         row += 1
+
+    if todo and 'all_sheets' in todo[0]:
+        # also generate a "Excluding this category"
+        row += 1
+        sheet.cell(row, 1, "Excluding this category").font = data_font
+        row += 1
+        for x in stat_headers:
+            sheet.cell(row, 1, x).font = data_font
+            row += 1
+
+
 
     # Walk through the todo...
     col = 2
@@ -256,12 +271,22 @@ def aggregate_sheet(sheet: Worksheet, title: str, vtitle: list[str], todo: list[
         cell.number_format = "0.00%"
         row += 2
 
-        for k in stat_headers.values():
+        stat_base_row = row
+        for k in stat_headers.values():            
             cell = sheet.cell(row, col)
             formula = f"=AVERAGE(" + ",".join([f"{x}!{cell.coordinate}" for x in this['sheets']]) + ")"
             sheet[cell.coordinate] = formula        
             cell.number_format = "0.00%"
             row += 1
+
+        if 'all_sheets' in this:
+            other_sheets = set(this['all_sheets']) - set(this['sheets'])
+            row += 2
+            for i, k in enumerate(stat_headers.values()):
+                source_cell = sheet.cell(stat_base_row + i, col)
+                formula = f"=AVERAGE(" + ",".join([f"{x}!{source_cell.coordinate}" for x in other_sheets]) + ")"
+                sheet.cell(row, col, formula).number_format = "0.00%"
+                row += 1
 
         col += 1
 
@@ -271,9 +296,17 @@ def load_transcripts(asset: Path, threeplay: Path) ->list[dict]:
        them, along with a permutation tuple"""
 
     transcripts = []
+    if not asset.is_dir():
+        return transcripts 
+    
     if not (asset / "metadata.yaml").exists():
         logging.warning(f"Skipping {asset.name} because there's no metadata.yaml")
         return transcripts
+
+    if asset.name.endswith(".ignore"):
+        logging.warning(f"Ignoring {asset}")
+        return transcripts
+
 
     # load the base metadata
     with open(asset / "metadata.yaml") as f:
@@ -338,8 +371,16 @@ def load_3play_json(file: Path):
 
     # filter out words we don't care about
     words = [x for x in data['words'] if x[1] != '']  # empty words
-    words = [x for x in words if x[0] not in data['speakers']] # speaker tokens
-    words = [[int(x[0]), x[1]] for x in words if not re.match(r"^\[[A-Z ]+\]$", x[1])] # audio descriptions
+    words = [x for x in words if x[0] not in data['speakers']] # speaker tokens 
+    words = [[x[0], re.sub(r'\[\?', ' ', x[1])] for x in words] # remove leading ambiguity marker
+    words = [[x[0], re.sub(r'\?\]', ' ', x[1])] for x in words] # remove trailing ambituity marker
+    words = [[x[0], re.sub(r'\[.*?\]', ' ', x[1])] for x in words] # remove sound annotation
+    words = [[x[0], re.sub(r'</?i>', ' ', x[1])] for x in words] # remove the italic markers
+    words = [[x[0], re.sub(r'\([A-Z\s]*\)', ' ', x[1])] for x in words]
+
+    # convert the timestamp to an integer
+    words = [[int(x[0]), x[1]] for x in words]
+
 
     # split into paragraphs
     paragraphs = [[]]
@@ -355,20 +396,80 @@ def load_3play_json(file: Path):
     return "\n".join([' '.join(x) for x in paragraphs if len(x)])
     
 
-def load_whisper_json(file: Path) -> dict:
+def load_whisper_json(file: Path, use_text=False,
+                      ignore_zero_words=True,
+                      ignore_annotations=True) -> dict:
     """Load a whisper transcript file and convert it to the data structure 
     we need for processing."""    
     with open(file) as f:
         raw = json.load(f)    
     
     xscript = raw['_job']
-    xscript['text'] = raw['text']   
+    if use_text:
+        xscript['text'] = raw['text']   
+    else:
+        # normally I just use the text that's generated by whisper, but let's 
+        # create the text manually and skip any words with 0 duration...
+        text = ""
+        words = 0
+        duration = 0        
+        empty_words = 0
+        discarded_words = 0
+        # per the internet, people speak 110 - 170 words per minute in english.
+        # so, let's assume that someone is speaking really slowly (say, 90
+        # words per minute)...we could use that as a cutoff for words that
+        # may be really long hallucinations (I've seen 29 second words in
+        # whisper and that's clearly wrong).  BUT, whisper will sometimes
+        # mis-time the words, so it's not really clear which things are
+        # halllucinations and which ones aren't.
+        word_duration_cutoff = 60 / 30
+        
+        # with 2s word cutoff and a 0.5 confidence cutoff, it was too aggressive
+        confidence_cutoff = 0.5
+
+        for s in raw['segments']:
+            # whisper sound annotations start with '[' for the whole segment, so
+            # we can drop the segment if we match that.
+            if ignore_annotations and (s['text'].startswith(' [') or
+                                       '(*' in s['text']):
+                logging.info(f"Removing sound annotation: {s['text']}")
+                continue
+
+
+            for position, w in enumerate(s['words']):
+                words += 1
+                word_duration = w['end'] - w['start']
+                duration += word_duration
+                if ignore_zero_words and word_duration == 0:
+                    empty_words += 1
+                    continue
+
+                # get rid of music symbol.
+                w['word'] = w['word'].replace('♪', ' ')
+
+
+                if False and word_duration > word_duration_cutoff:
+                    # compute confidence score
+                    confidence = w['probability']# * (word_duration_cutoff/ word_duration)
+                    logging.info(f"Discarding word '{w['word']}'@{position} {w['probability']*100:0.3f}%  {word_duration:0.3f}s/{word_duration_cutoff:0.3f}s, confidence {confidence * 100:0.3f}%")
+                    #if confidence > confidence_cutoff:
+                    text += w['word']
+                    discarded_words += 1
+                    continue
+                
+                text += w['word']
+
+        logging.info(f"Whisper text stats for {file}:  {words} words, average {duration/words:0.3f} words per second, {empty_words} were empty, {discarded_words} were discarded for being longer than {word_duration_cutoff:0.3f}")
+        xscript['text'] = text
+
     return xscript
     
     
 def normalize_transcript_text(text: str) -> str:
     """Remove punctuation, case, extraneous whtiespace, etc"""    
-    text = text.strip().lower()    
+    text = text.strip().lower()   
+    # remove commas from numbers
+    text = re.sub(r"(\d),(\d)", r'\1\2', text) 
     # get rid of internal newlines, tabs, etc
     text = re.sub(r"[\r\n\t]", ' ', text)
     # spaceless punctuation
@@ -376,7 +477,7 @@ def normalize_transcript_text(text: str) -> str:
     # spaceful punctuation
     text = re.sub(r"[\-!@#$%^&*()+=\[\]{}\\|;:\",./<>?]+", ' ', text)
     # get rid of all extraneous whitespace...
-    text = " ".join(text.split())    
+    text = " ".join(ennumberize(text.split()))
     return text
     
 
@@ -455,7 +556,7 @@ def generate_visualization(output: jiwer.WordOutput, length=75, differences=Fals
                     results[-1]['dif'] += 1
             else:
                 print(chunk)
-
+    
     if differences:
         results = [x for x in results if x['dif'] > 0]
 
@@ -469,6 +570,100 @@ def generate_visualization(output: jiwer.WordOutput, length=75, differences=Fals
         
     return report, stats
 
+
+numbers = {'ones': {'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+                    'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9},
+            'teens': {'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13,
+                    'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 
+                    'seventeen': 17, 'eighteen': 18, 'nineteen': 19},
+            'tens': {'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+                    'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90},
+            'powers': {'hundred': 100, 'thousand': 1000, 'million': 1000000}}
+
+
+def find_number(number: str):
+    for k, v in numbers.items():
+        if number in v:
+            return (k, v[number])
+    return (None, None)
+
+def reduce_accumulator(numbers: list[tuple[str, int]], words: list[str]):
+    """Take an accumulation of numbers and make them a thing."""
+    if len(numbers) == 1:
+        # this is easy, we've already got what we need.
+        return str(numbers[0][1])
+    if all([x[0] == 'ones' for x in numbers]):
+        if len(numbers) <= 10:
+            # string of digits as a number
+            return "".join([str(x[1]) for x in numbers])
+        else:
+            # this is a really long number, so treat them separately
+            return " ".join([str(x[1]) for x in numbers])
+    if len(numbers) == 2:
+        if numbers[-1][0] == 'teens' and numbers[-1][0] != 'powers':
+            # nineteen nineteen
+            return str(numbers[0][1] * 100 + numbers[1][1])
+        if numbers[0][0] == 'powers':
+            return str(numbers[0][1] + numbers[1][1])
+
+    # I give up.
+    result = " ".join([str(x[1]) for x in numbers])
+    print(f"Converted {' '.join(words)} to {result}")
+    return str(result)
+
+
+def ennumberize(words: list[str]):
+    "Try real hard to turn words into numbers!"    
+    result = []
+    accumulator = []
+    start_idx = 0
+    in_number = False
+    for here, w in enumerate(words):
+        ntype, value  = find_number(w)
+        if not in_number:
+            if ntype is None:
+                # this is a non-number word.
+                result.append(w)
+            else:
+                # we've got a fresh new number.
+                accumulator = [(ntype, value)]
+                start_idx = here
+                in_number = True                
+        else:
+            match ntype:
+                case None:
+                    # we were parsing numbers, now we don't have one.                    
+                    result.append(reduce_accumulator(accumulator, words[start_idx:here]))
+                    result.append(w)
+                    in_number = False                    
+                case 'ones' | 'teens':                
+                    if ntype == 'ones' and accumulator and accumulator[-1][0] == 'tens':
+                        # fifty one
+                        accumulator[-1] = (ntype, accumulator[-1][1] + value)
+                    else:
+                        accumulator.append((ntype, value))                    
+                case 'tens':
+                    if not accumulator:
+                        accumulator.append((ntype, value))
+                    else:
+                        if accumulator[-1][0] in ('ones', 'teens', 'tens'):
+                            # this is something like: nine twenty (920),  twenty twenty (2020)
+                            accumulator[-1] = (ntype, accumulator[-1][1] * 100 + value)
+                        else:
+                            # hundrend twenty, thousand twenty.
+                            accumulator[-1] = (ntype, accumulator[-1][1] + value)
+                case 'powers':
+                    if not accumulator:
+                        # million points of light
+                        accumulator.append((ntype, value))
+                    else:
+                        accumulator[-1] = (ntype, accumulator[-1][1] * value)
+
+    if in_number:        
+        result.append(reduce_accumulator(accumulator, words[start_idx:here]))
+      
+    
+    return result
 
 if __name__ == "__main__":
     main()
