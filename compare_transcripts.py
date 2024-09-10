@@ -26,13 +26,11 @@ def main():
     workdir: Path = args.workdir
     threeplay: Path = args.threeplay
 
-
     # Load all of the generated transcripts into a standard format.
     transcripts = []
     for d in workdir.glob('*'):
         transcripts.extend(load_transcripts(d, threeplay))
         
-
     # Start generating the excel workbook
     workbook = Workbook()
     del(workbook['Sheet']) 
@@ -110,8 +108,6 @@ def main():
                                  'all_sheets': all_worksheets})
         aggregate_sheet(sheet, f"Average across content type \"{pf}\"", variations, data)
 
-
-
     workbook.save(args.output)
     
  
@@ -132,7 +128,6 @@ def search_transcripts(transcripts: list[dict], query: dict) -> list[dict]:
     for k, v in query.items():
         results = [x for x in results if x.get(k, None) == v]
     return results
-
 
 
 def populate_sheet(sheet: Worksheet, title: str, vtitle: list[str], todo: list[dict]):
@@ -251,8 +246,6 @@ def aggregate_sheet(sheet: Worksheet, title: str, vtitle: list[str], todo: list[
             sheet.cell(row, 1, x).font = data_font
             row += 1
 
-
-
     # Walk through the todo...
     col = 2
     for this in todo:
@@ -320,15 +313,18 @@ def load_transcripts(asset: Path, threeplay: Path) ->list[dict]:
         # remove all of the suffixes.
         for s in reversed(nfile.suffixes):
             base_filename = base_filename[0:-len(s)]
+        if '.high' in nfile.name:
+            base_filename += ".high"
 
         # It's great that we're normalized, but without a 3play transcript
         # this is for nothing.  Let's get it if it exists, otherwise move
         # to the next one.
-        if not (threeplay / f"{base_filename}.json").exists():
-            logging.warning(f"Skipping {asset.name}/{base_filename} since there isn't a corresponding 3play transcript")
+        threeplay_base = base_filename.replace('.', '_')
+        if not (threeplay / f"{threeplay_base}.json").exists():
+            logging.warning(f"Skipping {asset.name}/{threeplay_base} since there isn't a corresponding 3play transcript")
             continue
         # load threeplay
-        threeplay_transcript = load_3play_json(threeplay / f"{base_filename}.json")
+        threeplay_transcript = load_3play_json(threeplay / f"{threeplay_base}.json")
 
         # load the normalization
         with open(nfile) as f:
@@ -432,7 +428,7 @@ def load_whisper_json(file: Path, use_text=False,
             # we can drop the segment if we match that.
             if ignore_annotations and (s['text'].startswith(' [') or
                                        '(*' in s['text']):
-                logging.info(f"Removing sound annotation: {s['text']}")
+                logging.debug(f"Removing sound annotation: {s['text']}")
                 continue
 
 
@@ -447,6 +443,9 @@ def load_whisper_json(file: Path, use_text=False,
                 # get rid of music symbol.
                 w['word'] = w['word'].replace('♪', ' ')
 
+
+                # fix OKAY -> OK
+                w['word'] = re.sub(r"/bokay/b", 'OK', w['word'], flags=re.IGNORECASE)
 
                 if False and word_duration > word_duration_cutoff:
                     # compute confidence score
@@ -608,7 +607,7 @@ def reduce_accumulator(numbers: list[tuple[str, int]], words: list[str]):
 
     # I give up.
     result = " ".join([str(x[1]) for x in numbers])
-    print(f"Converted {' '.join(words)} to {result}")
+    #print(f"Converted {' '.join(words)} to {result}")
     return str(result)
 
 
