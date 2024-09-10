@@ -105,8 +105,8 @@ def main():
             render_sheet(workbook, normalize_sheet_title(f"{category} - {cvalue}"), 
                          {'title': f"{category} - {cvalue}",
                           'filename': '',
-                          'truncated_duration': total_truncated_duration - subset_truncated_duration,
-                          'original_duration': total_original_duration - subset_original_duration,
+                          'truncated_duration': subset_truncated_duration,
+                          'original_duration': subset_original_duration,
                           'physical_format': '',
                           'content_type': ''},
                           variations, row_defs, edit_width=10, position=1)
