@@ -101,14 +101,7 @@ def main():
             row+= 1
             row_offset_base -= 1
 
-    #avg_sheet.cell(row, 1, "Filter Delta A")
-    #this_cell = expand_arguments(("Average", (-6, 0)))[0]
-
-
-    # Model averages
-
-
-
+ 
 
     # for each of the subset aggregates, we want the average WER data for the set
     # but we also want them for the others.  So add a header for "not including this"
