@@ -75,7 +75,7 @@ def render_sheet(workbook: Workbook, sheet_title: str, data: dict,
 
 
             row += 1
-    
+    return sheet
 
 def apply_function(function: str, sheets: set, offset=(0, 0)):
     """Create an excel function with the arguments which span

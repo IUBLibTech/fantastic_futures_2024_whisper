@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import Font, Alignment
 from transcript_compare import compare_transcripts
-from transcript_spreadsheet import apply_function, normalize_sheet_title, render_sheet
+from transcript_spreadsheet import apply_function, expand_arguments, normalize_sheet_title, render_sheet
 from utils import human_time
 from transcript_loader import load_transcripts
 import itertools
@@ -68,13 +68,47 @@ def main():
     # individual hit/sub/del/ins.
     row_defs = row_defs[0:8]
     
-    render_sheet(workbook, "Average", {'title': "Average Across Everything",
-                                       'filename': '',
-                                       'truncated_duration': (total_truncated_duration := sum([x['truncated_duration'] for x in data.values()])),
-                                       'original_duration': (total_original_duration := sum([x['original_duration'] for x in data.values()])),
-                                       'physical_format': 'All Physical Formats',
-                                       'content_type': "All Content Types"},
+    avg_sheet = render_sheet(workbook, "Average", {'title': "Average Across Everything",
+                                                   'filename': '',
+                                                   'truncated_duration': (total_truncated_duration := sum([x['truncated_duration'] for x in data.values()])),
+                                                   'original_duration': (total_original_duration := sum([x['original_duration'] for x in data.values()])),
+                                                   'physical_format': 'All Physical Formats',
+                                                   'content_type': "All Content Types"},
                                        variations, row_defs, edit_width=10, position=0)
+
+    # we need to put some other stats in the Average page.  These should be
+    # genericized, but I'm pressed for time.
+    row = 15    
+    col_max = len(list(itertools.product(*variations.values())))
+    # Previous Text Deltas
+    avg_sheet.cell(row, 1, "Previous Text Deltas")
+    this_cell = expand_arguments(("Average",), (-5, 0))[0]
+    left_cell = expand_arguments(("Average",), (-5, -1))[0]
+    for col in range(0, col_max, 2):
+        avg_sheet.cell(row, col + 3, f"={this_cell}-{left_cell}")
+        
+    # Audio Filter Deltas
+    row += 1
+    row_offset_base = -6
+    for delta, column_offset, start_offset in (('Audio Filter Delta A', -2, 4),  
+                                               ('Audio Filter Delta B', -4, 6)):
+        for i, val in enumerate(['T', 'F']):
+            avg_sheet.cell(row, 1, f"{delta}/{val}")
+            for col in range(0, col_max, 6):
+                this_cell = expand_arguments(("Average",), (row_offset_base, 0))[0]
+                left_cell = expand_arguments(("Average",) , (row_offset_base, column_offset))[0]
+                avg_sheet.cell(row, col + start_offset + i, f"={this_cell} - {left_cell}")
+            row+= 1
+            row_offset_base -= 1
+
+    #avg_sheet.cell(row, 1, "Filter Delta A")
+    #this_cell = expand_arguments(("Average", (-6, 0)))[0]
+
+
+    # Model averages
+
+
+
 
     # for each of the subset aggregates, we want the average WER data for the set
     # but we also want them for the others.  So add a header for "not including this"
