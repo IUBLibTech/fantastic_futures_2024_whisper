@@ -26,6 +26,10 @@ def load_transcripts(asset: Path, threeplay: Path) ->list[dict]:
     # load the base metadata
     with open(asset / "metadata.yaml") as f:
         base_meta = yaml.safe_load(f)
+    # there's some weirdity where we have "(alternate)" in some of the physical
+    # media names.  Let's remove that.
+    base_meta['physical format'] = base_meta['physical format'].replace('(alternate)', '').strip()
+
 
     # we're going to assume that every media file in this asset has been
     # normalized, so we'll use that as the basis for gathering the 
