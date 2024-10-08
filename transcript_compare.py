@@ -2,15 +2,16 @@ import re
 from transcript_numbers import ennumberize
 import jiwer
 
-def compare_transcripts(base: str, comp: str, edit_width=75, differences=True):
+def compare_transcripts(base: str, comp: str, edit_width=75, differences=True, gen_viz=True):
     """Compare two pieces of text and return the details of the comparison"""    
     c = jiwer.process_words(normalize_transcript_text(base),
-                            normalize_transcript_text(comp))
-    vis, _ = generate_visualization(c, edit_width, differences=differences)
+                            normalize_transcript_text(comp))    
     results = vars(c)
     for n in ('alignments', 'references', 'hypotheses'):
         del(results[n])
-    results['visualization'] = vis
+    if gen_viz:
+        vis, _ = generate_visualization(c, edit_width, differences=differences)
+        results['visualization'] = vis
     return results
 
 
