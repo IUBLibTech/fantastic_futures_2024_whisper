@@ -33,7 +33,7 @@ def main():
         transcripts.extend(load_transcripts(d, threeplay))
 
     # Do the comparison computation.
-    variations = {'Whisper Model': ['small', 'medium', 'large-v2', 'large-v3'],
+    variations = {'Whisper Model': ['small', 'medium', 'large-v2', 'large-v3', 'turbo'],
                   'Audio Filter': ['X', 'A', 'B'],
                   'Previous Text': ['T', 'F']}
 

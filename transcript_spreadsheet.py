@@ -4,6 +4,7 @@ import string
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import Font, Alignment
+from openpyxl.utils.cell import get_column_letter
 
 from utils import human_time
 import logging
@@ -46,7 +47,8 @@ def render_sheet(workbook: Workbook, sheet_title: str, data: dict,
         for p in perm:
             sheet.cell(row, col, p).font = vtitle_font
             row += 1
-        sheet.column_dimensions[chr(64 + col)].width = edit_width
+        
+        sheet.column_dimensions[get_column_letter(col)].width = edit_width  # chr(64 + col)
         for rowdef in row_defs:
             if rowdef is not None:
                 if len(rowdef) == 3:

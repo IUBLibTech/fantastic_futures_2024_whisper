@@ -7,8 +7,8 @@ def compare_transcripts(base: str, comp: str, edit_width=75, differences=True, g
     c = jiwer.process_words(normalize_transcript_text(base),
                             normalize_transcript_text(comp))    
     results = vars(c)
-    for n in ('alignments', 'references', 'hypotheses'):
-        del(results[n])
+    #for n in ('alignments', 'hypotheses'):  # also removed references
+    #    del(results[n])
     if gen_viz:
         vis, _ = generate_visualization(c, edit_width, differences=differences)
         results['visualization'] = vis

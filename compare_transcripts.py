@@ -17,6 +17,7 @@ import copy
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", default=False, action="store_true", help="Turn on debugging")
+    parser.add_argument("--turbo_subset", default=False, action="store_true", help="Only use a subset for comparing turbo")
     parser.add_argument("threeplay", type=Path, help="3play json directory")
     parser.add_argument("workdir", type=Path, help="Root of the media files")
     parser.add_argument("output", type=Path, help="Excel Output File")
@@ -33,9 +34,14 @@ def main():
         transcripts.extend(load_transcripts(d, threeplay))
 
     # Do the comparison computation.
-    variations = {'Whisper Model': ['small', 'medium', 'large-v2', 'large-v3'],
-                  'Audio Filter': ['X', 'A', 'B'],
-                  'Previous Text': ['T', 'F']}
+    if not args.turbo_subset:
+        variations = {'Whisper Model': ['small', 'medium', 'large-v2', 'large-v3', 'turbo'],
+                    'Audio Filter': ['X', 'A', 'B'],
+                    'Previous Text': ['T', 'F']}
+    else:
+        variations = {'Whisper Model': ['medium', 'large-v2', 'large-v3', 'turbo'],
+                    'Audio Filter': ['X'],
+                    'Previous Text': ['T']}        
     data = compute_transcript_data(variations, transcripts, differences=True)
 
     # Start generating the excel workbook
@@ -43,7 +49,7 @@ def main():
     del(workbook['Sheet']) # remove the initial sheet.
 
     row_defs = [None,
-                ['Processing Ratio', 'processing_ratio', '0.00%'],
+                ['Processing Ratio', 'processing_ratio', '0.00'],
                 None,
                 ['Word Error Rate', 'wer', '0.00%'],
                 ['Word Information Lost', 'wil', '0.00%'],

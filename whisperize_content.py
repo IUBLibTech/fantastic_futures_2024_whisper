@@ -42,16 +42,12 @@ def main():
     else:
         resume_time = 0
 
-
-
-
     # Set up whisper
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     logging.info(f"Whisper will use {device} for computation")
     
-    
     # Run through all of the permutations...
-    for model_name in ('small', 'medium', 'large-v2', 'large-v3'):
+    for model_name in ('turbo', 'small', 'medium', 'large-v2', 'large-v3'):
         logging.info(f"Loading model {model_name}")
         model = whisper.load_model(model_name, device=device)
 
@@ -75,22 +71,14 @@ def main():
 
                     for previous_text in ('T', 'F'):
                         logging.info(f"Transcribing {media_file} with model {model_name}, previous_text {previous_text}, audio_filter: {audio_filter}")
-                        whisper_file = media_file.with_suffix(f".whisper.{model_name}_{previous_text}_{audio_filter}.json")
-                        if whisper_file.exists() and whisper_file.stat().st_mtime < resume_time:
+                        whisper_file = media_file.with_suffix(f".whisper.{model_name}_{previous_text}_{audio_filter}.json")                        
+                        if whisper_file.exists() and whisper_file.stat().st_mtime < resume_time: 
                             logging.info(f"Skipping creation of {whisper_file.name} since it already exists")
                             continue
-
                         
                         whisper_start = time.time()
                         duration = get_duration(media_file)
                         audio = whisper.load_audio(tempfile.name)
-                        #detect_audio = whisper.pad_or_trim(audio)
-                        #mel = whisper.log_mel_spectrogram(detect_audio,
-                        #                                n_mels=128 if model_name in('large', 'large-v3') else 80,
-                        #                                device=device).to(device)
-                        #_, probs = model.detect_language(mel)
-                        #language = max(probs, key=probs.get)
-                        #logging.info(f"Detected language {language}")
                         language = "en"
             
                         res = whisper.transcribe(model, audio, 

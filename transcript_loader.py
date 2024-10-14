@@ -75,7 +75,7 @@ def load_transcripts(asset: Path, threeplay: Path) ->list[dict]:
                 'whisper_transcript': whisper_transcript['text'],
                 '3play_transcript': threeplay_transcript,
                 # things we'll need later that we might as well compute here.
-                'processing_ratio': whisper_transcript['runtime'] / normalization_meta['truncated_duration'],
+                'processing_ratio': normalization_meta['truncated_duration'] / whisper_transcript['runtime'],
                 'variant': (whisper_transcript['model'], whisper_transcript['audio_filter'], whisper_transcript['previous_text'])
             }
             transcripts.append(data)
@@ -174,7 +174,8 @@ def load_whisper_json(file: Path, use_text=False,
 
 
                 # fix OKAY -> OK
-                w['word'] = re.sub(r"/bokay/b", 'OK', w['word'], flags=re.IGNORECASE)
+                w['word'] = re.sub(r"/bokay/b", 'ok', w['word'], flags=re.IGNORECASE)
+                
 
                 if False and word_duration > word_duration_cutoff:
                     # compute confidence score
