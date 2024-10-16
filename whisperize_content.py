@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", default=False, action="store_true", help="Turn on debugging")
     parser.add_argument("--resume", default=False, action="store_true", help="Resume where it left off")
+    parser.add_argument("--half", default=False, action="store_true", help="Half Precision Floats")
     parser.add_argument("workdir", type=Path, help="Root for the media files")
     
     args = parser.parse_args()
@@ -84,7 +85,8 @@ def main():
                         res = whisper.transcribe(model, audio, 
                                                 word_timestamps=True,
                                                 language=language,
-                                                condition_on_previous_text=previous_text==True)
+                                                condition_on_previous_text=previous_text==True,
+                                                fp16=args.half)
                         res['_job'] = {
                             'runtime': time.time() - whisper_start,
                             'duration': duration,
