@@ -82,30 +82,32 @@ def main():
                                                    'content_type': "All Content Types"},
                                        variations, row_defs, edit_width=10, position=0)
 
-    # we need to put some other stats in the Average page.  These should be
-    # genericized, but I'm pressed for time.
-    row = 15    
-    col_max = len(list(itertools.product(*variations.values())))
-    # Previous Text Deltas
-    avg_sheet.cell(row, 1, "Previous Text Deltas")
-    this_cell = expand_arguments(("Average",), (-5, 0))[0]
-    left_cell = expand_arguments(("Average",), (-5, -1))[0]
-    for col in range(0, col_max, 2):
-        avg_sheet.cell(row, col + 3, f"={this_cell}-{left_cell}")
-        
-    # Audio Filter Deltas
-    row += 1
-    row_offset_base = -6
-    for delta, column_offset, start_offset in (('Audio Filter Delta A', -2, 4),  
-                                               ('Audio Filter Delta B', -4, 6)):
-        for i, val in enumerate(['T', 'F']):
-            avg_sheet.cell(row, 1, f"{delta}/{val}")
-            for col in range(0, col_max, 6):
-                this_cell = expand_arguments(("Average",), (row_offset_base, 0))[0]
-                left_cell = expand_arguments(("Average",) , (row_offset_base, column_offset))[0]
-                avg_sheet.cell(row, col + start_offset + i, f"={this_cell} - {left_cell}")
-            row+= 1
-            row_offset_base -= 1
+    
+    if not args.turbo_subset:
+        # we need to put some other stats in the Average page.  These should be
+        # genericized, but I'm pressed for time.
+        row = 15    
+        col_max = len(list(itertools.product(*variations.values())))
+        # Previous Text Deltas
+        avg_sheet.cell(row, 1, "Previous Text Deltas")
+        this_cell = expand_arguments(("Average",), (-5, 0))[0]
+        left_cell = expand_arguments(("Average",), (-5, -1))[0]
+        for col in range(0, col_max, 2):
+            avg_sheet.cell(row, col + 3, f"={this_cell}-{left_cell}")
+            
+        # Audio Filter Deltas
+        row += 1
+        row_offset_base = -6
+        for delta, column_offset, start_offset in (('Audio Filter Delta A', -2, 4),  
+                                                ('Audio Filter Delta B', -4, 6)):
+            for i, val in enumerate(['T', 'F']):
+                avg_sheet.cell(row, 1, f"{delta}/{val}")
+                for col in range(0, col_max, 6):
+                    this_cell = expand_arguments(("Average",), (row_offset_base, 0))[0]
+                    left_cell = expand_arguments(("Average",) , (row_offset_base, column_offset))[0]
+                    avg_sheet.cell(row, col + start_offset + i, f"={this_cell} - {left_cell}")
+                row+= 1
+                row_offset_base -= 1
 
  
 
